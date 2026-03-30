@@ -16,7 +16,6 @@ python-docx
 python-multipart
 reportlab
 markdown2
-deepseek-api
 tavily-python
 duckduckgo-search
 requests
