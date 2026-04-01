@@ -34,9 +34,16 @@ load_dotenv()
 app = FastAPI()
 
 ##
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+from fastapi.responses import FileResponse
+
 @app.get("/")
 def home():
-    return {"message": "Hello from Meta Consult"}
+    return FileResponse("static/index.html")
 ##
 
 
