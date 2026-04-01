@@ -548,14 +548,14 @@
         // Logout functionality
         document.getElementById('logout-btn').addEventListener('click', () => {
             localStorage.removeItem('access_token');
-            window.location.href = 'login.html';
+            window.location.href = '/login';
         });
 
         // Load Dashboard Data
         async function loadDashboard() {
             const token = localStorage.getItem('access_token');
             if (!token) {
-                window.location.href = 'login.html';
+                window.location.href = '/login';
                 return;
             }
 
@@ -567,7 +567,7 @@
                 });
 
                 if (response.status === 401) {
-                    window.location.href = 'login.html';
+                    window.location.href = '/login';
                     return;
                 }
 
@@ -819,7 +819,7 @@
         async function loadSolution() {
             const token = localStorage.getItem('access_token');
             if (!token) {
-                window.location.href = 'login.html';
+                window.location.href = '/login';
                 return;
             }
 
@@ -831,7 +831,7 @@
                 });
 
                 if (response.status === 401) {
-                    window.location.href = 'login.html';
+                    window.location.href = '/login';
                     return;
                 }
 
@@ -885,7 +885,7 @@
             const token = localStorage.getItem('access_token');
             if (!token) {
                 alert('Session expired. Please log in again.');
-                window.location.href = 'login.html';
+                window.location.href = '/login';
                 return;
             }
 
@@ -900,7 +900,7 @@
                 if (!response.ok) {
                     if (response.status === 401) {
                         alert('Session expired. Please log in again.');
-                        window.location.href = 'login.html';
+                        window.location.href = '/login';
                     } else if (response.status === 404) {
                         alert('Solution PDF not found. Please generate a solution first.');
                     } else {
@@ -937,7 +937,7 @@
             if (!token) {
                 errorMessage.textContent = 'Please log in again.';
                 errorMessage.style.display = 'block';
-                setTimeout(() => window.location.href = 'login.html', 2000);
+                setTimeout(() => window.location.href = '/login', 2000);
                 return null;
             }
             try {
@@ -989,7 +989,7 @@
             if (!token) {
                 errorMessage.textContent = 'Please log in again.';
                 errorMessage.style.display = 'block';
-                setTimeout(() => window.location.href = 'login.html', 2000);
+                setTimeout(() => window.location.href = '/login', 2000);
                 sendBtn.disabled = false;
                 loader.style.display = 'none';
                 return;
@@ -1033,7 +1033,7 @@
                     if (!token) {
                         errorMessage.textContent = 'Session expired. Please log in again.';
                         errorMessage.style.display = 'block';
-                        setTimeout(() => window.location.href = 'login.html', 2000);
+                        setTimeout(() => window.location.href = '/login', 2000);
                         sendBtn.disabled = false;
                         loader.style.display = 'none';
                         return;
@@ -1153,7 +1153,7 @@
             const token = localStorage.getItem('access_token');
             if (!token) {
                 alert('Session expired. Please log in again.');
-                window.location.href = 'login.html';
+                window.location.href = '/login';
                 return;
             }
 
@@ -1169,7 +1169,7 @@
                 if (!response.ok) {
                     if (response.status === 401) {
                         alert('Session expired. Please log in again.');
-                        window.location.href = 'login.html';
+                        window.location.href = '/login';
                     } else if (response.status === 404) {
                         alert('Solution PDF not found. Please generate a solution first.');
                     } else {
