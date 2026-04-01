@@ -47,11 +47,11 @@ from fastapi.responses import FileResponse
 def home():
     return FileResponse("static/index.html")
 
-@app.get("/login")
+@app.post("/login")
 def login():
     return FileResponse("static/login.html")
 
-@app.get("/signup")
+@app.post("/signup")
 def signup():
     return FileResponse("static/signup.html")
 
