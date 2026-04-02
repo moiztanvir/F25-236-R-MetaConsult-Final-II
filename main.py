@@ -190,7 +190,13 @@ def verify_password(plain_password, hashed_password):
         logger.error(f"Password verify error: {str(e)}")
         return False
 
-def get_password_hash(password):
+
+def get_password_hash(password: str):
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=400,
+            detail="Password too long (max 72 bytes)"
+        )
     return pwd_context.hash(password)
 
 def _validate_password_length_or_400(password: str):
