@@ -41,8 +41,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 from fastapi.responses import FileResponse
 
-from fastapi.responses import FileResponse
-
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
@@ -55,7 +53,7 @@ def login():
 def signup():
     return FileResponse("static/signup.html")
 
-@app.get("/main")
+@app.get("/main_page")
 def main_page():
     return FileResponse("static/main_page.html")
 ##
