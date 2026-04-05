@@ -9,7 +9,7 @@
 [![Gemini](https://img.shields.io/badge/Gemini-2.5--flash-red?logo=google)](https://deepmind.google/technologies/gemini/)
 [![Supabase](https://img.shields.io/badge/Supabase-Auth%20%26%20DB-green?logo=supabase)](https://supabase.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)](https://f25-236-r-meta-consult-final-ii.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-black?logo=vercel)](https://f25-236-r-metaconsult-final-ii.onrender.com)
 
 ---
 
@@ -51,7 +51,7 @@ To democratize access to high-quality business consultancy by combining the powe
 
 ## Live Demo
 
-> 🌐 **[https://f25-236-r-meta-consult-final-ii.vercel.app](https://f25-236-r-meta-consult-final-ii.vercel.app)**
+> 🌐 **[https://f25-236-r-meta-consult-final-ii.vercel.app](https://f25-236-r-metaconsult-final-ii.onrender.com)**
 
 ---
 
