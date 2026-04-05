@@ -22,7 +22,6 @@ from agent_workflow import MultiAgentWorkflow
 from langchain_core.messages import HumanMessage, AIMessage
 import asyncio
 
-
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -30,10 +29,8 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# FastAPI app
 app = FastAPI()
 
-##
 from fastapi.staticfiles import StaticFiles
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -187,7 +184,6 @@ def verify_password(plain_password, hashed_password):
     except Exception as e:
         logger.error(f"Password verify error: {str(e)}")
         return False
-
 
 def get_password_hash(password: str):
     if len(password.encode("utf-8")) > 72:
@@ -425,6 +421,78 @@ def count_user_messages() -> int:
             count += 1
     return count
 
+def _cycle_message_baseline() -> int:
+    """HumanMessage count at the start of the current workflow cycle (for repeat runs)."""
+    raw = proposal_agent.gathered_info.get("cycle_message_baseline", "0")
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        return 0
+
+def user_messages_this_cycle() -> int:
+    """User messages since the last cycle reset; used for the proposal-offer threshold."""
+    return count_user_messages() - _cycle_message_baseline()
+
+# Commands that start a new questioning → proposal → planner → web search → report cycle
+_NEW_WORKFLOW_CYCLE_COMMANDS = (
+    "new report",
+    "another report",
+    "new proposal",
+    "another proposal",
+    "generate another report",
+    "new analysis",
+    "another analysis",
+    "start new workflow",
+    "restart workflow",
+    "new consultation",
+    "another consultation",
+    "start over",
+    "begin new report",
+)
+
+def _wants_new_workflow_cycle(message: str) -> bool:
+    m = (message or "").lower().strip()
+    if not m:
+        return False
+    if m in ("reset", "new cycle", "restart"):
+        return True
+    compact = " ".join(m.split())
+    if compact in _NEW_WORKFLOW_CYCLE_COMMANDS:
+        return True
+    for cmd in _NEW_WORKFLOW_CYCLE_COMMANDS:
+        if compact.startswith(cmd + " ") or compact.startswith(cmd + ","):
+            return True
+    return False
+
+def _begin_new_workflow_cycle() -> None:
+    """
+    Reset workflow flags so the user can go through questioning → proposal → agents → report again.
+    Call with the triggering user message NOT yet saved; baseline = current HumanMessage count.
+    """
+    baseline = count_user_messages()
+    proposal_agent.store_gathered_info("cycle_message_baseline", str(baseline))
+    proposal_agent.store_gathered_info("proposal_generated", "false")
+    proposal_agent.store_gathered_info("proposal_offered", "false")
+    proposal_agent.store_gathered_info("proposal_analyzed", "false")
+    proposal_agent.store_gathered_info("web_search_pending", "false")
+    proposal_agent.store_gathered_info("solution_ready_for_download", "false")
+    proposal_agent.store_gathered_info("workflow_stage", "idle")
+    proposal_agent.store_gathered_info("workflow_last_html", "")
+    proposal_agent.store_gathered_info("workflow_final_html", "")
+    proposal_agent.store_gathered_info("awaiting_search_confirmation", "false")
+    proposal_agent.store_gathered_info("proposal_path", "")
+    proposal_agent.store_gathered_info("solution_pdf_path", "")
+    proposal_agent.store_gathered_info("domain_classification", "")
+    proposal_agent.store_gathered_info("proposal_content_for_search", "")
+    proposal_agent.store_gathered_info("primary_domain", "")
+    proposal_agent.store_gathered_info("solution_report_markdown", "")
+
+def _mark_ready_for_next_questioning_cycle() -> None:
+    """After a report is delivered, allow another round of questioning → proposal → agents → report."""
+    proposal_agent.store_gathered_info("proposal_generated", "false")
+    proposal_agent.store_gathered_info("proposal_offered", "false")
+    proposal_agent.store_gathered_info("cycle_message_baseline", str(count_user_messages()))
+
 def _ensure_chat_session_for_user(current_user: dict) -> None:
     """
     Ensure chat memory and proposal flags are scoped per logged-in user.
@@ -448,6 +516,7 @@ def _ensure_chat_session_for_user(current_user: dict) -> None:
         proposal_agent.store_gathered_info("proposal_offered", "false")
         # Do NOT touch stored PDFs on disk; proposal_generated flag is only for flow control
         proposal_agent.store_gathered_info("proposal_generated", "false")
+        _begin_new_workflow_cycle()
 
 @app.post("/chat")
 async def chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
@@ -457,7 +526,6 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
         _ensure_chat_session_for_user(current_user)
         # Load chat history
         memory.load_memory_variables({})
-        user_message_count = count_user_messages()
         
         # Workflow handling:
         msg_lower = request.message.lower().strip()
@@ -482,6 +550,16 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
             """
             return {"response": error_response, "response_html": error_response}
 
+        # 0b) Start a new agentic workflow cycle (after a prior report or anytime user asks).
+        if _wants_new_workflow_cycle(request.message):
+            _begin_new_workflow_cycle()
+            ack = """
+            <p><strong>Starting a new consultation cycle.</strong></p>
+            <p>Share details about your new or updated business challenge. After a few exchanges, I will offer to run the full workflow again (proposal → planner → web search → downloadable report).</p>
+            """
+            memory.save_context({"input": request.message}, {"output": ack})
+            return {"response": ack, "response_html": ack}
+
         # 1) If user manually asks to generate proposal (during conversation phase)
         if msg_lower in ['yes', 'y', 'generate proposal', 'create proposal'] and proposal_agent.gathered_info.get("proposal_offered") == "true" and proposal_agent.gathered_info.get("proposal_generated") != "true":
             # Clear the offered flag and auto-trigger the full workflow
@@ -491,7 +569,7 @@ async def chat(request: ChatRequest, current_user: dict = Depends(get_current_us
         # 2) Offer proposal generation once conversation is mature.
         # After the threshold, *always* redirect user back to the proposal offer
         # until they confirm with 'yes' / 'generate proposal'.
-        if user_message_count >= 3 and proposal_agent.gathered_info.get("proposal_generated") != "true":
+        if user_messages_this_cycle() >= 3 and proposal_agent.gathered_info.get("proposal_generated") != "true":
             proposal_offer = """
             <p>Based on our detailed conversation, I have gathered comprehensive information about your business challenge.</p>
             <p><strong>Would you like Meta Consult to create a detailed proposal for solving your problem?</strong></p>
@@ -1149,6 +1227,7 @@ async def get_web_search_results(current_user: dict):
                 
                 # Store state for download handling
                 proposal_agent.store_gathered_info("solution_ready_for_download", "true")
+                _mark_ready_for_next_questioning_cycle()
                 
                 logger.info("Solution report generated and PDF created successfully")
                 return {"response": response_html, "response_html": response_html}
@@ -1170,6 +1249,7 @@ async def get_web_search_results(current_user: dict):
                 )
                 proposal_agent.store_gathered_info("workflow_final_html", response_html)
                 proposal_agent.store_gathered_info("workflow_last_html", response_html)
+                _mark_ready_for_next_questioning_cycle()
                 return {"response": response_html, "response_html": response_html}
         else:
             logger.warning("Web search results HTML is empty")
@@ -1226,7 +1306,6 @@ async def chat_with_file(
         _ensure_chat_session_for_user(current_user)
         # Load chat history
         memory.load_memory_variables({})
-        user_message_count = count_user_messages()
 
         # Workflow handling for file-based chat:
         msg_lower = message.lower().strip()
@@ -1251,6 +1330,16 @@ async def chat_with_file(
             """
             return {"response": error_response, "response_html": error_response}
 
+        # 0b) Start a new agentic workflow cycle (same as /chat).
+        if _wants_new_workflow_cycle(message):
+            _begin_new_workflow_cycle()
+            ack = """
+            <p><strong>Starting a new consultation cycle.</strong></p>
+            <p>Share details about your new or updated business challenge (you can attach a file). After a few exchanges, I will offer to run the full workflow again.</p>
+            """
+            memory.save_context({"input": message or "(new cycle)"}, {"output": ack})
+            return {"response": ack, "response_html": ack}
+
         # 1) / 2) Background automation: confirmations removed. Workflow runs automatically after proposal generation.
 
         # 3) Direct analysis command
@@ -1266,7 +1355,7 @@ async def chat_with_file(
         # 5) Offer proposal generation once conversation is mature.
         # After the threshold, keep directing the user back to the proposal offer
         # until they explicitly confirm with 'yes'.
-        if user_message_count >= 3 and proposal_agent.gathered_info.get("proposal_generated") != "true":
+        if user_messages_this_cycle() >= 3 and proposal_agent.gathered_info.get("proposal_generated") != "true":
             proposal_offer = """
             <p>Based on our conversation and the file you've shared, I have a comprehensive understanding of your business challenge.</p>
             <p><strong>Would you like Meta Consult to create a detailed proposal for solving your problem?</strong></p>
